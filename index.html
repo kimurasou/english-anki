@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>英単語Anki</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  :root {
+    --primary: #4f46e5;
+    --primary-light: #6366f1;
+    --bg: #f1f5f9;
+    --card-bg: #ffffff;
+    --text: #1e293b;
+    --sub: #64748b;
+    --border: #e2e8f0;
+    --green: #22c55e;
+    --yellow: #f59e0b;
+    --red: #ef4444;
+    --blue: #3b82f6;
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* ===== Header ===== */
+  header {
+    background: var(--primary);
+    color: white;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; letter-spacing: 0.02em; }
+  .header-stats { font-size: 0.78rem; opacity: 0.9; text-align: right; }
+  .header-stats span { display: block; }
+
+  /* ===== Nav ===== */
+  nav {
+    display: flex;
+    background: white;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  nav::-webkit-scrollbar { display: none; }
+  .nav-btn {
+    flex: none;
+    padding: 12px 18px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--sub);
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+  }
+  .nav-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+  /* ===== Pages ===== */
+  .page { display: none; padding: 16px; max-width: 600px; margin: 0 auto; }
+  .page.active { display: block; }
+
+  /* ===== Study Page ===== */
+  .study-controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .mode-btn {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    background: white;
+    color: var(--sub);
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s;
+  }
+  .mode-btn.active { border-color: var(--primary); background: var(--primary); color: white; }
+
+  .progress-bar-wrap { background: var(--border); border-radius: 99px; height: 6px; margin-bottom: 14px; }
+  .progress-bar { height: 6px; background: var(--primary); border-radius: 99px; transition: width 0.4s; }
+  .progress-label { text-align: center; font-size: 0.8rem; color: var(--sub); margin-bottom: 12px; }
+
+  /* Card flip */
+  .card-scene { width: 100%; perspective: 1000px; margin-bottom: 16px; cursor: pointer; }
+  .flip-card {
+    width: 100%;
+    min-height: 220px;
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 0.45s cubic-bezier(0.4,0,0.2,1);
+  }
+  .flip-card.flipped { transform: rotateY(180deg); }
+  .card-face {
+    position: absolute;
+    width: 100%;
+    min-height: 220px;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    border-radius: 18px;
+    background: var(--card-bg);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 28px 24px;
+    text-align: center;
+  }
+  .card-back { transform: rotateY(180deg); }
+  .card-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--sub);
+    margin-bottom: 10px;
+  }
+  .card-word { font-size: 2rem; font-weight: 800; color: var(--text); line-height: 1.2; }
+  .card-phonetic { font-size: 0.95rem; color: var(--sub); margin-top: 6px; font-style: italic; }
+  .card-category-badge {
+    margin-top: 12px;
+    padding: 3px 12px;
+    border-radius: 99px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: #ede9fe;
+    color: var(--primary);
+  }
+  .card-hint { font-size: 0.78rem; color: var(--sub); margin-top: 14px; opacity: 0.7; }
+
+  .card-meaning { font-size: 1.3rem; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+  .card-example { font-size: 0.9rem; color: var(--sub); font-style: italic; line-height: 1.6; }
+  .card-example-ja { font-size: 0.85rem; color: var(--sub); margin-top: 4px; line-height: 1.5; }
+  .card-notes { font-size: 0.82rem; color: #94a3b8; margin-top: 8px; }
+
+  .flip-hint { text-align: center; font-size: 0.78rem; color: var(--sub); margin-bottom: 12px; }
+
+  /* Rating */
+  .rating-section { margin-top: 4px; }
+  .rating-label { text-align: center; font-size: 0.82rem; color: var(--sub); margin-bottom: 10px; }
+  .rating-btns { display: flex; gap: 8px; }
+  .rate-btn {
+    flex: 1;
+    padding: 14px 4px;
+    border: none;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+  }
+  .rate-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .rate-btn span.emoji { font-size: 1.2rem; }
+  .rate-btn.r1 { background: #fee2e2; color: #b91c1c; }
+  .rate-btn.r2 { background: #ffedd5; color: #c2410c; }
+  .rate-btn.r3 { background: #fef3c7; color: #b45309; }
+  .rate-btn.r4 { background: #d1fae5; color: #065f46; }
+  .rate-btn.r5 { background: #dbeafe; color: #1e40af; }
+  .rate-btn:not(:disabled):active { transform: scale(0.93); }
+
+  .no-cards-msg { text-align: center; padding: 48px 20px; color: var(--sub); }
+  .no-cards-msg .big { font-size: 3rem; margin-bottom: 12px; }
+  .no-cards-msg p { font-size: 1rem; margin-bottom: 16px; }
+
+  /* Session summary */
+  .summary-card {
+    background: white;
+    border-radius: 18px;
+    padding: 28px 20px;
+    text-align: center;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+  }
+  .summary-card h2 { font-size: 1.3rem; margin-bottom: 6px; }
+  .summary-card .big-num { font-size: 3rem; font-weight: 900; color: var(--primary); }
+  .summary-dist { display: flex; gap: 6px; margin: 16px 0; }
+  .summary-dist div { flex: 1; padding: 10px 4px; border-radius: 10px; font-size: 0.75rem; font-weight: 700; text-align: center; }
+  .summary-dist .d1 { background: #fee2e2; color: #b91c1c; }
+  .summary-dist .d2 { background: #ffedd5; color: #c2410c; }
+  .summary-dist .d3 { background: #fef3c7; color: #b45309; }
+  .summary-dist .d4 { background: #d1fae5; color: #065f46; }
+  .summary-dist .d5 { background: #dbeafe; color: #1e40af; }
+  .summary-dist .d-num { font-size: 1.3rem; display: block; }
+  .btn-primary {
+    display: inline-block;
+    padding: 14px 32px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: all 0.15s;
+  }
+  .btn-primary:active { transform: scale(0.97); background: var(--primary-light); }
+
+  /* ===== List Page ===== */
+  .search-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .search-bar input {
+    flex: 1;
+    padding: 11px 14px;
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    font-size: 0.9rem;
+    outline: none;
+    background: white;
+  }
+  .search-bar input:focus { border-color: var(--primary); }
+  .filter-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 14px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+  .filter-row::-webkit-scrollbar { display: none; }
+  .filter-chip {
+    flex: none;
+    padding: 6px 14px;
+    border-radius: 99px;
+    border: 2px solid var(--border);
+    background: white;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--sub);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s;
+  }
+  .filter-chip.active { border-color: var(--primary); background: var(--primary); color: white; }
+
+  .word-list { display: flex; flex-direction: column; gap: 8px; }
+  .word-item {
+    background: white;
+    border-radius: 14px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .word-item:active { transform: scale(0.99); box-shadow: none; }
+  .word-item-level {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    font-size: 0.85rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .lv1 { background: #fee2e2; color: #b91c1c; }
+  .lv2 { background: #ffedd5; color: #c2410c; }
+  .lv3 { background: #fef3c7; color: #b45309; }
+  .lv4 { background: #d1fae5; color: #065f46; }
+  .lv5 { background: #dbeafe; color: #1e40af; }
+
+  .word-item-body { flex: 1; min-width: 0; }
+  .word-item-en { font-weight: 700; font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .word-item-ja { font-size: 0.82rem; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .word-item-meta { font-size: 0.72rem; color: #94a3b8; margin-top: 2px; }
+  .word-item-cat {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 99px;
+    background: #ede9fe;
+    color: var(--primary);
+    flex-shrink: 0;
+  }
+
+  /* ===== Add/Edit Page ===== */
+  .form-card {
+    background: white;
+    border-radius: 18px;
+    padding: 20px 16px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+    margin-bottom: 12px;
+  }
+  .form-card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 16px; color: var(--text); }
+  .form-group { margin-bottom: 14px; }
+  .form-group label { display: block; font-size: 0.82rem; font-weight: 600; color: var(--sub); margin-bottom: 6px; }
+  .form-group input, .form-group textarea, .form-group select {
+    width: 100%;
+    padding: 12px 14px;
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    font-size: 0.92rem;
+    font-family: inherit;
+    outline: none;
+    background: #f8fafc;
+    color: var(--text);
+    transition: border-color 0.15s;
+    -webkit-appearance: none;
+  }
+  .form-group input:focus, .form-group textarea:focus, .form-group select:focus { border-color: var(--primary); background: white; }
+  .form-group textarea { resize: vertical; min-height: 72px; }
+  .form-group input[required] ~ label::after { content: ' *'; color: var(--red); }
+
+  .form-row { display: flex; gap: 10px; }
+  .form-row .form-group { flex: 1; }
+
+  .btn-row { display: flex; gap: 8px; }
+  .btn-save {
+    flex: 1;
+    padding: 15px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-save:active { transform: scale(0.97); }
+  .btn-cancel {
+    padding: 15px 20px;
+    background: var(--bg);
+    color: var(--sub);
+    border: none;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .btn-delete {
+    width: 100%;
+    padding: 14px;
+    background: #fee2e2;
+    color: var(--red);
+    border: none;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 8px;
+  }
+
+  .fab {
+    position: fixed;
+    bottom: 24px;
+    right: 20px;
+    width: 58px;
+    height: 58px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    font-size: 1.6rem;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(79,70,229,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    transition: all 0.15s;
+  }
+  .fab:active { transform: scale(0.93); }
+
+  /* ===== Stats Page ===== */
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .stat-card {
+    background: white;
+    border-radius: 16px;
+    padding: 16px;
+    text-align: center;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+  }
+  .stat-card .num { font-size: 2rem; font-weight: 900; color: var(--primary); }
+  .stat-card .label { font-size: 0.78rem; color: var(--sub); margin-top: 4px; }
+  .level-bars { background: white; border-radius: 16px; padding: 16px; box-shadow: 0 1px 6px rgba(0,0,0,0.07); margin-bottom: 10px; }
+  .level-bars h3 { font-size: 0.9rem; font-weight: 700; margin-bottom: 12px; }
+  .level-bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .level-bar-row .lv-label { width: 40px; font-size: 0.82rem; font-weight: 700; }
+  .level-bar-track { flex: 1; background: var(--bg); border-radius: 99px; height: 14px; overflow: hidden; }
+  .level-bar-fill { height: 14px; border-radius: 99px; transition: width 0.6s; }
+  .level-bar-row .lv-count { width: 30px; text-align: right; font-size: 0.82rem; color: var(--sub); }
+  .cat-list { background: white; border-radius: 16px; padding: 16px; box-shadow: 0 1px 6px rgba(0,0,0,0.07); }
+  .cat-list h3 { font-size: 0.9rem; font-weight: 700; margin-bottom: 12px; }
+  .cat-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 0.88rem; }
+  .cat-row:last-child { border-bottom: none; }
+  .cat-name { font-weight: 600; }
+  .cat-count { color: var(--sub); font-size: 0.82rem; }
+
+  /* ===== Modal ===== */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 300;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: white;
+    border-radius: 22px 22px 0 0;
+    padding: 20px 16px 36px;
+    width: 100%;
+    max-width: 600px;
+    max-height: 92vh;
+    overflow-y: auto;
+    animation: slideUp 0.3s ease;
+  }
+  @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  .modal-handle { width: 40px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 16px; }
+
+  /* Responsive */
+  @media (min-width: 600px) {
+    .page { padding: 20px; }
+    .flip-card { min-height: 260px; }
+    .card-face { min-height: 260px; }
+    .card-word { font-size: 2.4rem; }
+    .modal-overlay { align-items: center; }
+    .modal { border-radius: 22px; max-height: 80vh; }
+    .fab { bottom: 32px; right: 32px; }
+  }
+
+  .empty-list { text-align: center; padding: 40px 20px; color: var(--sub); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>英単語 Anki</h1>
+  <div class="header-stats">
+    <span id="hdr-total"></span>
+    <span id="hdr-due"></span>
+  </div>
+</header>
+
+<nav>
+  <button class="nav-btn active" data-page="study">学習</button>
+  <button class="nav-btn" data-page="list">単語帳</button>
+  <button class="nav-btn" data-page="stats">統計</button>
+</nav>
+
+<!-- ===== STUDY PAGE ===== -->
+<div id="page-study" class="page active">
+  <div class="study-controls">
+    <button class="mode-btn active" data-mode="due">今日の復習</button>
+    <button class="mode-btn" data-mode="all">全部</button>
+    <button class="mode-btn" data-mode="weak">苦手(Lv1-2)</button>
+    <button class="mode-btn" data-mode="random">ランダム</button>
+  </div>
+
+  <div id="study-content">
+    <!-- dynamic -->
+  </div>
+</div>
+
+<!-- ===== LIST PAGE ===== -->
+<div id="page-list" class="page">
+  <div class="search-bar">
+    <input type="text" id="search-input" placeholder="単語・意味を検索…">
+  </div>
+  <div class="filter-row" id="filter-row">
+    <button class="filter-chip active" data-cat="all">すべて</button>
+  </div>
+  <div class="word-list" id="word-list"></div>
+  <div class="empty-list" id="list-empty" style="display:none">まだ単語がありません。＋ボタンで追加しましょう！</div>
+</div>
+
+<!-- ===== STATS PAGE ===== -->
+<div id="page-stats" class="page">
+  <div class="stats-grid">
+    <div class="stat-card"><div class="num" id="st-total">0</div><div class="label">総単語数</div></div>
+    <div class="stat-card"><div class="num" id="st-due">0</div><div class="label">今日の復習</div></div>
+    <div class="stat-card"><div class="num" id="st-mastered">0</div><div class="label">習得済み(Lv5)</div></div>
+    <div class="stat-card"><div class="num" id="st-studied">0</div><div class="label">今日学習した数</div></div>
+  </div>
+  <div class="level-bars" id="level-bars">
+    <h3>レベル分布</h3>
+  </div>
+  <div class="cat-list" id="cat-stat-list">
+    <h3>カテゴリ別</h3>
+  </div>
+</div>
+
+<!-- ===== FAB ===== -->
+<button class="fab" id="fab-add" title="単語を追加">＋</button>
+
+<!-- ===== MODAL: Add/Edit ===== -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal" id="modal">
+    <div class="modal-handle"></div>
+    <div class="form-card">
+      <h3 id="modal-title">単語を追加</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label>英単語 *</label>
+          <input type="text" id="f-word" placeholder="e.g. acquire" autocomplete="off" autocapitalize="none">
+        </div>
+        <div class="form-group">
+          <label>発音記号</label>
+          <input type="text" id="f-phonetic" placeholder="e.g. /əˈkwaɪər/" autocomplete="off">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>日本語の意味 *</label>
+        <input type="text" id="f-meaning" placeholder="e.g. 獲得する、習得する" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label>例文（英語）</label>
+        <textarea id="f-example" placeholder="e.g. She acquired new skills at work."></textarea>
+      </div>
+      <div class="form-group">
+        <label>例文訳（日本語）</label>
+        <input type="text" id="f-example-ja" placeholder="e.g. 彼女は仕事で新しいスキルを習得した。" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label>カテゴリ</label>
+        <input type="text" id="f-category" placeholder="e.g. TOEIC・動詞・ビジネス" list="cat-datalist" autocomplete="off">
+        <datalist id="cat-datalist"></datalist>
+      </div>
+      <div class="form-group">
+        <label>メモ</label>
+        <textarea id="f-notes" placeholder="語源・使い方・ニュアンスなど…" style="min-height:56px;"></textarea>
+      </div>
+      <div class="btn-row">
+        <button class="btn-cancel" id="btn-cancel">キャンセル</button>
+        <button class="btn-save" id="btn-save">保存する</button>
+      </div>
+      <button class="btn-delete" id="btn-delete" style="display:none">この単語を削除する</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== DATA =====
+const STORAGE_KEY = 'english_anki_v1';
+const TODAY_KEY = 'english_anki_today';
+const REVIEW_DAYS = [0, 1, 3, 7, 14, 30]; // level 0-5
+
+let db = { words: [], todayStudied: 0, todayDate: '' };
+
+function loadDb() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) db = JSON.parse(raw);
+    // Reset daily count
+    const today = new Date().toISOString().slice(0,10);
+    if (db.todayDate !== today) {
+      db.todayDate = today;
+      db.todayStudied = 0;
+      saveDb();
+    }
+  } catch(e) {}
+}
+
+function saveDb() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+}
+
+function today() { return new Date().toISOString().slice(0,10); }
+
+function isDue(word) {
+  if (!word.lastReviewed) return true;
+  const days = REVIEW_DAYS[word.level || 0];
+  const next = new Date(word.lastReviewed);
+  next.setDate(next.getDate() + days);
+  return new Date() >= next;
+}
+
+function dueCount() { return db.words.filter(w => isDue(w)).length; }
+
+function getStudyQueue(mode) {
+  let pool = [...db.words];
+  if (mode === 'due') pool = pool.filter(w => isDue(w));
+  else if (mode === 'weak') pool = pool.filter(w => (w.level||0) <= 2);
+  // shuffle
+  for (let i = pool.length-1; i > 0; i--) {
+    const j = Math.floor(Math.random()*(i+1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  if (mode === 'random') pool = pool.slice(0, Math.min(20, pool.length));
+  return pool;
+}
+
+// ===== UI STATE =====
+let currentPage = 'study';
+let studyMode = 'due';
+let studyQueue = [];
+let studyIdx = 0;
+let flipped = false;
+let sessionRatings = [0,0,0,0,0];
+let editingId = null;
+let listCatFilter = 'all';
+
+// ===== NAVIGATION =====
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentPage = btn.dataset.page;
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-'+currentPage).classList.add('active');
+    if (currentPage === 'study') renderStudy();
+    if (currentPage === 'list') renderList();
+    if (currentPage === 'stats') renderStats();
+    updateHeader();
+  });
+});
+
+// ===== STUDY =====
+document.querySelectorAll('.mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    studyMode = btn.dataset.mode;
+    startStudy();
+  });
+});
+
+function startStudy() {
+  studyQueue = getStudyQueue(studyMode);
+  studyIdx = 0;
+  flipped = false;
+  sessionRatings = [0,0,0,0,0];
+  renderStudy();
+}
+
+function renderStudy() {
+  const el = document.getElementById('study-content');
+  if (studyQueue.length === 0) {
+    const mode = studyMode;
+    let msg = '';
+    if (mode === 'due') msg = '今日の復習は全部終わりました！';
+    else if (mode === 'weak') msg = '苦手な単語がありません。';
+    else msg = '単語がありません。';
+    el.innerHTML = `
+      <div class="no-cards-msg">
+        <div class="big">🎉</div>
+        <p>${msg}</p>
+        ${db.words.length === 0 ? '<p style="font-size:0.85rem">＋ボタンで単語を追加しましょう</p>' : ''}
+      </div>`;
+    return;
+  }
+  if (studyIdx >= studyQueue.length) {
+    renderSummary(el);
+    return;
+  }
+
+  const word = studyQueue[studyIdx];
+  const total = studyQueue.length;
+  const pct = Math.round((studyIdx / total) * 100);
+
+  el.innerHTML = `
+    <div class="progress-bar-wrap"><div class="progress-bar" style="width:${pct}%"></div></div>
+    <div class="progress-label">${studyIdx + 1} / ${total}</div>
+
+    <div class="card-scene" id="card-scene">
+      <div class="flip-card" id="flip-card">
+        <div class="card-face card-front">
+          <div class="card-tag">英単語</div>
+          <div class="card-word">${escHtml(word.word)}</div>
+          ${word.phonetic ? `<div class="card-phonetic">${escHtml(word.phonetic)}</div>` : ''}
+          ${word.category ? `<div class="card-category-badge">${escHtml(word.category)}</div>` : ''}
+          <div class="card-hint">タップして答えを見る</div>
+        </div>
+        <div class="card-face card-back">
+          <div class="card-tag">意味</div>
+          <div class="card-meaning">${escHtml(word.meaning)}</div>
+          ${word.example ? `<div class="card-example">${escHtml(word.example)}</div>` : ''}
+          ${word.exampleJa ? `<div class="card-example-ja">${escHtml(word.exampleJa)}</div>` : ''}
+          ${word.notes ? `<div class="card-notes">📝 ${escHtml(word.notes)}</div>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <div class="flip-hint" id="flip-hint">タップしてめくる ↑</div>
+
+    <div class="rating-section">
+      <div class="rating-label">どのくらい分かった？</div>
+      <div class="rating-btns">
+        <button class="rate-btn r1" onclick="rate(1)" ${!flipped ? 'disabled' : ''}><span class="emoji">😰</span>Lv1</button>
+        <button class="rate-btn r2" onclick="rate(2)" ${!flipped ? 'disabled' : ''}><span class="emoji">😕</span>Lv2</button>
+        <button class="rate-btn r3" onclick="rate(3)" ${!flipped ? 'disabled' : ''}><span class="emoji">🙂</span>Lv3</button>
+        <button class="rate-btn r4" onclick="rate(4)" ${!flipped ? 'disabled' : ''}><span class="emoji">😊</span>Lv4</button>
+        <button class="rate-btn r5" onclick="rate(5)" ${!flipped ? 'disabled' : ''}><span class="emoji">🎯</span>Lv5</button>
+      </div>
+    </div>`;
+
+  document.getElementById('card-scene').addEventListener('click', flipCard);
+  updateHeader();
+}
+
+function flipCard() {
+  if (flipped) return;
+  flipped = true;
+  document.getElementById('flip-card').classList.add('flipped');
+  document.getElementById('flip-hint').textContent = '↑ もう一度見る';
+  document.querySelectorAll('.rate-btn').forEach(b => b.disabled = false);
+}
+
+function rate(level) {
+  const word = studyQueue[studyIdx];
+  const idx = db.words.findIndex(w => w.id === word.id);
+  if (idx >= 0) {
+    db.words[idx].level = level;
+    db.words[idx].lastReviewed = new Date().toISOString();
+    db.words[idx].reviewCount = (db.words[idx].reviewCount || 0) + 1;
+  }
+  sessionRatings[level-1]++;
+  db.todayStudied++;
+  saveDb();
+  studyIdx++;
+  flipped = false;
+  renderStudy();
+  updateHeader();
+}
+
+function renderSummary(el) {
+  const total = studyQueue.length;
+  const avgLevel = sessionRatings.reduce((s,c,i)=>s+c*(i+1),0) / total;
+  el.innerHTML = `
+    <div class="summary-card">
+      <h2>セッション完了！</h2>
+      <div class="big-num">${total}</div>
+      <div style="color:var(--sub);font-size:0.85rem;margin-bottom:4px">単語を学習しました</div>
+      <div style="color:var(--sub);font-size:0.85rem;margin-bottom:16px">平均レベル: ${avgLevel.toFixed(1)}</div>
+      <div class="summary-dist">
+        ${[1,2,3,4,5].map((l,i)=>`<div class="d${l}"><span class="d-num">${sessionRatings[i]}</span>Lv${l}</div>`).join('')}
+      </div>
+      <button class="btn-primary" onclick="startStudy()">もう一度</button>
+    </div>`;
+}
+
+// ===== LIST =====
+function renderList() {
+  const cats = ['all', ...new Set(db.words.map(w=>w.category).filter(Boolean))];
+  const filterRow = document.getElementById('filter-row');
+  filterRow.innerHTML = cats.map(c => `<button class="filter-chip ${c===listCatFilter?'active':''}" data-cat="${escHtml(c)}">${c==='all'?'すべて':escHtml(c)}</button>`).join('');
+  filterRow.querySelectorAll('.filter-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      listCatFilter = chip.dataset.cat;
+      renderList();
+    });
+  });
+
+  // datalist update
+  const dl = document.getElementById('cat-datalist');
+  dl.innerHTML = cats.filter(c=>c!=='all').map(c=>`<option value="${escHtml(c)}">`).join('');
+
+  const q = document.getElementById('search-input').value.toLowerCase();
+  let words = db.words.filter(w => {
+    const matchCat = listCatFilter === 'all' || w.category === listCatFilter;
+    const matchQ = !q || w.word.toLowerCase().includes(q) || w.meaning.includes(q);
+    return matchCat && matchQ;
+  });
+  words = words.slice().sort((a,b) => a.word.localeCompare(b.word));
+
+  const listEl = document.getElementById('word-list');
+  const emptyEl = document.getElementById('list-empty');
+  if (words.length === 0) {
+    listEl.innerHTML = '';
+    emptyEl.style.display = '';
+    return;
+  }
+  emptyEl.style.display = 'none';
+  listEl.innerHTML = words.map(w => `
+    <div class="word-item" data-id="${w.id}">
+      <div class="word-item-level lv${w.level||0}">${w.level||0}</div>
+      <div class="word-item-body">
+        <div class="word-item-en">${escHtml(w.word)}</div>
+        <div class="word-item-ja">${escHtml(w.meaning)}</div>
+        ${isDue(w) ? '<div class="word-item-meta">📅 復習タイミング</div>' : ''}
+      </div>
+      ${w.category ? `<div class="word-item-cat">${escHtml(w.category)}</div>` : ''}
+    </div>`).join('');
+
+  listEl.querySelectorAll('.word-item').forEach(item => {
+    item.addEventListener('click', () => openEdit(item.dataset.id));
+  });
+}
+
+document.getElementById('search-input').addEventListener('input', renderList);
+
+// ===== STATS =====
+function renderStats() {
+  const words = db.words;
+  document.getElementById('st-total').textContent = words.length;
+  document.getElementById('st-due').textContent = dueCount();
+  document.getElementById('st-mastered').textContent = words.filter(w=>(w.level||0)===5).length;
+  document.getElementById('st-studied').textContent = db.todayStudied || 0;
+
+  const levels = [0,1,2,3,4,5];
+  const levelCounts = levels.map(l => words.filter(w=>(w.level||0)===l).length);
+  const maxCount = Math.max(...levelCounts, 1);
+  const colors = ['#94a3b8','#ef4444','#f97316','#f59e0b','#22c55e','#3b82f6'];
+  const labels = ['未学習','Lv1','Lv2','Lv3','Lv4','Lv5'];
+  document.getElementById('level-bars').innerHTML = `<h3>レベル分布</h3>` +
+    levels.map((l,i)=>`
+      <div class="level-bar-row">
+        <div class="lv-label" style="color:${colors[i]}">${labels[i]}</div>
+        <div class="level-bar-track"><div class="level-bar-fill" style="width:${Math.round(levelCounts[i]/maxCount*100)}%;background:${colors[i]}"></div></div>
+        <div class="lv-count">${levelCounts[i]}</div>
+      </div>`).join('');
+
+  const cats = [...new Set(words.map(w=>w.category||'未分類'))];
+  const catCounts = cats.map(c => words.filter(w=>(w.category||'未分類')===c).length);
+  const sorted = cats.map((c,i)=>({c,n:catCounts[i]})).sort((a,b)=>b.n-a.n);
+  document.getElementById('cat-stat-list').innerHTML = `<h3>カテゴリ別</h3>` +
+    (sorted.length ? sorted.map(({c,n})=>`<div class="cat-row"><span class="cat-name">${escHtml(c)}</span><span class="cat-count">${n}語</span></div>`).join('') : '<div style="color:var(--sub);font-size:0.85rem">まだ単語がありません</div>');
+}
+
+// ===== ADD/EDIT MODAL =====
+document.getElementById('fab-add').addEventListener('click', openAdd);
+document.getElementById('btn-cancel').addEventListener('click', closeModal);
+document.getElementById('modal-overlay').addEventListener('click', e => { if(e.target===document.getElementById('modal-overlay')) closeModal(); });
+document.getElementById('btn-save').addEventListener('click', saveWord);
+document.getElementById('btn-delete').addEventListener('click', deleteWord);
+
+function openAdd() {
+  editingId = null;
+  document.getElementById('modal-title').textContent = '単語を追加';
+  clearForm();
+  document.getElementById('btn-delete').style.display = 'none';
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function openEdit(id) {
+  const word = db.words.find(w=>w.id===id);
+  if (!word) return;
+  editingId = id;
+  document.getElementById('modal-title').textContent = '単語を編集';
+  document.getElementById('f-word').value = word.word || '';
+  document.getElementById('f-phonetic').value = word.phonetic || '';
+  document.getElementById('f-meaning').value = word.meaning || '';
+  document.getElementById('f-example').value = word.example || '';
+  document.getElementById('f-example-ja').value = word.exampleJa || '';
+  document.getElementById('f-category').value = word.category || '';
+  document.getElementById('f-notes').value = word.notes || '';
+  document.getElementById('btn-delete').style.display = '';
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+
+function clearForm() {
+  ['f-word','f-phonetic','f-meaning','f-example','f-example-ja','f-category','f-notes'].forEach(id => document.getElementById(id).value = '');
+}
+
+function saveWord() {
+  const word = document.getElementById('f-word').value.trim();
+  const meaning = document.getElementById('f-meaning').value.trim();
+  if (!word || !meaning) { alert('英単語と意味は必須です'); return; }
+
+  const data = {
+    word,
+    phonetic: document.getElementById('f-phonetic').value.trim(),
+    meaning,
+    example: document.getElementById('f-example').value.trim(),
+    exampleJa: document.getElementById('f-example-ja').value.trim(),
+    category: document.getElementById('f-category').value.trim(),
+    notes: document.getElementById('f-notes').value.trim(),
+  };
+
+  if (editingId) {
+    const idx = db.words.findIndex(w=>w.id===editingId);
+    if (idx>=0) Object.assign(db.words[idx], data);
+  } else {
+    db.words.push({ id: Date.now().toString(), level: 0, lastReviewed: null, reviewCount: 0, createdAt: new Date().toISOString(), ...data });
+  }
+  saveDb();
+  closeModal();
+  if (currentPage === 'list') renderList();
+  if (currentPage === 'study') startStudy();
+  updateHeader();
+}
+
+function deleteWord() {
+  if (!confirm('この単語を削除しますか？')) return;
+  db.words = db.words.filter(w=>w.id!==editingId);
+  saveDb();
+  closeModal();
+  renderList();
+  updateHeader();
+}
+
+// ===== HEADER =====
+function updateHeader() {
+  document.getElementById('hdr-total').textContent = `${db.words.length}語`;
+  document.getElementById('hdr-due').textContent = `復習: ${dueCount()}語`;
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ===== INIT =====
+loadDb();
+startStudy();
+updateHeader();
+</script>
+</body>
+</html>
